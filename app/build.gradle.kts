@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    id("com.google.devtools.ksp")
 }
 
 android {
@@ -53,4 +54,30 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
+
+    // Room dependencies
+    dependencies {
+        val room_version = "2.8.4"
+        implementation(libs.androidx.room.runtime)
+
+        // If this project uses any Kotlin source, use Kotlin Symbol Processing (KSP)
+        // See Add the KSP plugin to your project
+        ksp(libs.androidx.room.compiler)
+
+        // If this project only uses Java source, use the Java annotationProcessor
+        // No additional plugins are necessary
+        annotationProcessor(libs.androidx.room.compiler)
+
+        // optional - Kotlin Extensions and Coroutines support for Room
+        implementation(libs.androidx.room.ktx)
+
+        // optional - Guava support for Room, including Optional and ListenableFuture
+        implementation(libs.androidx.room.guava)
+
+        // optional - Test helpers
+        testImplementation(libs.androidx.room.testing)
+
+        // optional - Paging 3 Integration
+        implementation(libs.androidx.room.paging)
+    }
 }

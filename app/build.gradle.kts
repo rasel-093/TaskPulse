@@ -57,7 +57,6 @@ dependencies {
 
     // Room dependencies
     dependencies {
-        val room_version = "2.8.4"
         implementation(libs.androidx.room.runtime)
 
         // If this project uses any Kotlin source, use Kotlin Symbol Processing (KSP)
@@ -80,4 +79,7 @@ dependencies {
         // optional - Paging 3 Integration
         implementation(libs.androidx.room.paging)
     }
+
+    //Workmanager
+    implementation(libs.androidx.work.runtime.ktx)
 }

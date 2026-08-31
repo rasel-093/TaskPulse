@@ -4,15 +4,10 @@ import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
-import android.content.pm.PackageManager
 import android.os.Build
-import android.widget.Toast
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresPermission
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
-import androidx.core.content.ContextCompat
-import androidx.core.content.ContextCompat.getSystemService
 import com.example.taskpulse.R
 
 const val CHANNEL_ID = "TASK_REMINDER_CHANNEL"
@@ -34,7 +29,7 @@ fun createNotificationChannel(context: Context) {
 }
 
 @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
-fun sendNotification(message: String, context: Context) {
+fun sendNotification(message: String?, context: Context) {
     val notification = NotificationCompat.Builder(context, CHANNEL_ID)
         .setSmallIcon(R.drawable.notification)
         .setContentTitle("Task Reminder")

@@ -1,7 +1,6 @@
 package com.example.taskpulse
 
 import android.Manifest
-import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -10,66 +9,79 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.annotation.RequiresPermission
+import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.core.content.ContextCompat
-import com.example.taskpulse.notification.sendNotification
-import com.example.taskpulse.ui.theme.TaskPulseTheme
-import androidx.compose.material3.Button
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.ui.Alignment
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import com.example.taskpulse.data.TaskDatabase
+import com.example.taskpulse.data.TaskRepository
+import com.example.taskpulse.ui.AddTaskScreen
+import com.example.taskpulse.ui.TaskListScreen
+import com.example.taskpulse.ui.TaskListViewModel
+import com.example.taskpulse.ui.theme.TaskPulseTheme
 
 class MainActivity : ComponentActivity() {
+
+    private val repository by lazy {
+        val database = TaskDatabase.getDatabase(applicationContext)
+        TaskRepository(database.taskDao(), applicationContext)
+    }
+
+    private val viewModel: TaskListViewModel by viewModels {
+        TaskListViewModel.Factory(repository)
+    }
+
+    private val requestPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
+            if (isGranted) {
+                Toast.makeText(this, "Notification permission granted", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "Notification permission denied. Reminders may not show notifications.", Toast.LENGTH_LONG).show()
+            }
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        checkNotificationPermission()
 
         setContent {
-
             TaskPulseTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.Center,     // Center items vertically
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        val context = LocalContext.current
-                        Button(onClick = {
-                            checkNotificationPermissionAndSend(context, "Test notification")
-                        }) {
-                            Text("Click to send notification")
-                        }
+                Surface(modifier = Modifier.fillMaxSize()) {
+                    var currentScreen by remember { mutableStateOf("taskList") }
+
+                    if (currentScreen == "addTask") {
+                        AddTaskScreen(
+                            viewModel = viewModel,
+                            onTaskCreated = {
+                                currentScreen = "taskList"
+                            },
+                            onNavigateBack = {
+                                currentScreen = "taskList"
+                            }
+                        )
+                    } else {
+                        TaskListScreen(
+                            viewModel = viewModel,
+                            onNavigateToAddTask = {
+                                currentScreen = "addTask"
+                            }
+                        )
                     }
                 }
             }
         }
     }
-    private val requestPermissionLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
-            if (isGranted) {
-                Toast.makeText(this, "Permission Granted, Notification will be sent from next time", Toast.LENGTH_LONG).show()
-            } else {
-                Toast.makeText(this, "Permission rejected", Toast.LENGTH_LONG).show()
-            }
-        }
-    @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
-    fun checkNotificationPermissionAndSend(context: Context, message: String){
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU){
-            sendNotification(message, context)
-        }else{
-            val permission = ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
-            if (permission == PackageManager.PERMISSION_GRANTED){
-                sendNotification(message, context)
-            }else{
+
+    private fun checkNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val permission = ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+            if (permission != PackageManager.PERMISSION_GRANTED) {
                 requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         }

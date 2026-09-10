@@ -8,7 +8,7 @@ TaskPulse is a clean, simple, and reliable reminder app for Android. Built with 
 
 | Timeline & Filters | Add / Edit Reminder | Interactive Notifications |
 | :---: | :---: | :---: |
-| ![Timeline Screen](screenshots/task_list.png) | ![Add Reminder Sheet](screenshots/add_task.png) | ![Notification Actions](screenshots/notification_actions.png) |
+| ![Timeline Screen](screenshots/screenshot1.png) | ![Add Reminder Sheet](screenshots/screenshot2.png) | ![Notification Actions](screenshots/screenshot3.png) |
 
 ---
 

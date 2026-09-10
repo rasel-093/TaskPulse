@@ -30,7 +30,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
                 // 1. Cancel current reminder, then reschedule a new one ~10 minutes from now
                 repository.cancelReminder(taskId)
                 val taskTitle = intent.getStringExtra(EXTRA_TASK_TITLE) ?: "Task Reminder"
-                repository.scheduleReminder(taskId, taskTitle, 10L)
+                repository.scheduleReminder(taskId, taskTitle, 10L, androidx.work.ExistingWorkPolicy.REPLACE)
 
                 // 2. Dismiss the current notification from the shade
                 NotificationManagerCompat.from(context).cancel(taskId.toInt())

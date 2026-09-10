@@ -1,6 +1,7 @@
 package com.example.taskpulse.data
 
 import android.content.Context
+import androidx.work.Constraints
 import androidx.work.Data
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
@@ -22,15 +23,21 @@ class TaskRepository(private val taskDao: TaskDao, private val context: Context)
 
     val workManager = WorkManager.getInstance(context)
 
+    // Constraints: only fire reminder when device is not in low battery / battery-saver mode
+    private val reminderConstraints = Constraints.Builder()
+        .setRequiresBatteryNotLow(true)
+        .build()
+
     fun scheduleReminder(
         taskId: Long,
         taskTitle: String,
         delayMinutes: Long,
-        policy: ExistingWorkPolicy = ExistingWorkPolicy.REPLACE
+        policy: ExistingWorkPolicy = ExistingWorkPolicy.KEEP
     ) {
         val data = createWorkerData(taskTitle, taskId)
         val workRequest = OneTimeWorkRequestBuilder<ReminderWorker>()
             .setInputData(data)
+            .setConstraints(reminderConstraints)
             .setInitialDelay(delayMinutes, timeUnit = TimeUnit.MINUTES)
             .addTag(taskId.toString())
             .build()
@@ -44,13 +51,18 @@ class TaskRepository(private val taskDao: TaskDao, private val context: Context)
             .build()
     }
 
-    fun scheduleRecurringReminder(taskId: Long, taskTitle: String) {
+    fun scheduleRecurringReminder(
+        taskId: Long,
+        taskTitle: String,
+        policy: ExistingPeriodicWorkPolicy = ExistingPeriodicWorkPolicy.KEEP
+    ) {
         val data = createWorkerData(taskTitle, taskId)
         val workRequest = PeriodicWorkRequestBuilder<ReminderWorker>(1, TimeUnit.DAYS)
             .setInputData(data)
+            .setConstraints(reminderConstraints)
             .addTag(taskId.toString())
             .build()
-        workManager.enqueueUniquePeriodicWork("recurring_reminder_$taskId", ExistingPeriodicWorkPolicy.UPDATE, workRequest)
+        workManager.enqueueUniquePeriodicWork("recurring_reminder_$taskId", policy, workRequest)
     }
 
     fun cancelReminder(taskId: Long) {

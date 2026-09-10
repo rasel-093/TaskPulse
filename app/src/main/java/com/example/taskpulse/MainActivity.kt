@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import com.example.taskpulse.data.TaskDatabase
 import com.example.taskpulse.data.TaskRepository
+import com.example.taskpulse.ui.AddTaskBottomSheet
 import com.example.taskpulse.ui.AddTaskScreen
 import com.example.taskpulse.ui.TaskListScreen
 import com.example.taskpulse.ui.TaskListViewModel
@@ -45,6 +46,7 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+    @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -53,23 +55,23 @@ class MainActivity : ComponentActivity() {
         setContent {
             TaskPulseTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    var currentScreen by remember { mutableStateOf("taskList") }
+                    var showAddSheet by remember { mutableStateOf(false) }
 
-                    if (currentScreen == "addTask") {
-                        AddTaskScreen(
+                    TaskListScreen(
+                        viewModel = viewModel,
+                        onNavigateToAddTask = {
+                            showAddSheet = true
+                        }
+                    )
+
+                    if (showAddSheet) {
+                        AddTaskBottomSheet(
                             viewModel = viewModel,
-                            onTaskCreated = {
-                                currentScreen = "taskList"
+                            onDismissRequest = {
+                                showAddSheet = false
                             },
-                            onNavigateBack = {
-                                currentScreen = "taskList"
-                            }
-                        )
-                    } else {
-                        TaskListScreen(
-                            viewModel = viewModel,
-                            onNavigateToAddTask = {
-                                currentScreen = "addTask"
+                            onTaskCreated = {
+                                showAddSheet = false
                             }
                         )
                     }

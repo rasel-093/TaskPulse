@@ -7,10 +7,24 @@ import com.example.taskpulse.data.Task
 import com.example.taskpulse.data.TaskRepository
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+sealed interface TaskListUiState {
+    object Loading : TaskListUiState
+    data class Success(val tasks: List<Task>) : TaskListUiState
+}
+
 class TaskListViewModel(val repository: TaskRepository) : ViewModel() {
+
+    val uiState: StateFlow<TaskListUiState> = repository.allTask
+        .map<List<Task>, TaskListUiState> { TaskListUiState.Success(it) }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = TaskListUiState.Loading
+        )
 
     val tasks: StateFlow<List<Task>> = repository.allTask.stateIn(
         scope = viewModelScope,

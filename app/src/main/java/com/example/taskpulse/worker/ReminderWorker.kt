@@ -16,11 +16,17 @@ class ReminderWorker(context: Context, params: WorkerParameters) : Worker(contex
         val permission = ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.POST_NOTIFICATIONS)
         if ( permission == PackageManager.PERMISSION_GRANTED){
             val taskTitle = inputData.getString(TASK_TITLE_KEY) ?: return Result.failure()
-            sendNotification(context = applicationContext, message = taskTitle)
+            val taskId = inputData.getLong(TASK_ID_KEY, defaultValue = 0L)
+            if (taskId == 0L) return Result.failure()
+            sendNotification(
+                context = applicationContext, message = taskTitle,
+                taskId = taskId
+            )
         }
         return Result.success()
     }
     companion object {
         const val TASK_TITLE_KEY = "TASK_TITLE_KEY"
+        const val TASK_ID_KEY = "TASK_ID_KEY"
     }
 }

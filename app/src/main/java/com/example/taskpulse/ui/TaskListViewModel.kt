@@ -48,6 +48,19 @@ class TaskListViewModel(val repository: TaskRepository) : ViewModel() {
         }
     }
 
+    fun toggleTaskCompleted(task: Task) {
+        viewModelScope.launch {
+            val newStatus = !task.isCompleted
+            repository.markTaskCompleted(task.id, newStatus)
+        }
+    }
+
+    fun markTaskDone(taskId: Long) {
+        viewModelScope.launch {
+            repository.markTaskCompleted(taskId, true)
+        }
+    }
+
     class Factory(private val repository: TaskRepository) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {

@@ -114,6 +114,7 @@ fun TaskListScreen(
     val tasks by viewModel.tasks.collectAsState()
     var currentFilter by remember { mutableStateOf(TimelineFilter.ALL) }
     var showAddDialog by remember { mutableStateOf(false) }
+    var taskToEdit by remember { mutableStateOf<Task?>(null) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
@@ -149,6 +150,7 @@ fun TaskListScreen(
                     if (onNavigateToAddTask != null) {
                         onNavigateToAddTask()
                     } else {
+                        taskToEdit = null
                         showAddDialog = true
                     }
                 },
@@ -206,6 +208,7 @@ fun TaskListScreen(
                                 if (onNavigateToAddTask != null) {
                                     onNavigateToAddTask()
                                 } else {
+                                    taskToEdit = null
                                     showAddDialog = true
                                 }
                             }
@@ -233,6 +236,10 @@ fun TaskListScreen(
                                     isLast = isLast,
                                     isUrgent = isUrgent,
                                     onToggleComplete = { viewModel.toggleTaskCompleted(task) },
+                                    onEdit = {
+                                        taskToEdit = task
+                                        showAddDialog = true
+                                    },
                                     onDelete = {
                                         viewModel.deleteTask(task)
                                         coroutineScope.launch {
@@ -247,10 +254,14 @@ fun TaskListScreen(
             }
         }
 
-        if (showAddDialog) {
+        if (showAddDialog || taskToEdit != null) {
             AddTaskBottomSheet(
                 viewModel = viewModel,
-                onDismissRequest = { showAddDialog = false },
+                onDismissRequest = {
+                    showAddDialog = false
+                    taskToEdit = null
+                },
+                taskToEdit = taskToEdit,
                 onShowSnackbar = { message ->
                     coroutineScope.launch {
                         snackbarHostState.showSnackbar(message)
@@ -385,6 +396,7 @@ private fun TimelineTaskSwipeNode(
     isLast: Boolean,
     isUrgent: Boolean,
     onToggleComplete: () -> Unit,
+    onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
     var isDismissed by remember { mutableStateOf(false) }
@@ -446,6 +458,7 @@ private fun TimelineTaskSwipeNode(
                     task = task,
                     isUrgent = isUrgent,
                     onToggleComplete = onToggleComplete,
+                    onEdit = onEdit,
                     onDelete = onDelete
                 )
             }
@@ -562,6 +575,7 @@ private fun TimelineTaskCard(
     task: Task,
     isUrgent: Boolean,
     onToggleComplete: () -> Unit,
+    onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
     val cardBackground = if (isUrgent && !task.isCompleted) {
@@ -584,7 +598,7 @@ private fun TimelineTaskCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(cardBackground)
-            .clickable { onToggleComplete() }
+            .clickable { onEdit() }
     ) {
         Column(
             modifier = Modifier.padding(14.dp)
@@ -633,7 +647,7 @@ private fun TimelineTaskCard(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Meta Row: Tags & Delete action
+            // Meta Row: Tags & Action buttons (Edit + Delete)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -659,16 +673,33 @@ private fun TimelineTaskCard(
                     }
                 }
 
-                IconButton(
-                    onClick = onDelete,
-                    modifier = Modifier.size(24.dp)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Text(
-                        text = "✕",
-                        color = TextFaint,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    IconButton(
+                        onClick = onEdit,
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Text(
+                            text = "✎",
+                            color = TextLo,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+
+                    IconButton(
+                        onClick = onDelete,
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Text(
+                            text = "✕",
+                            color = TextFaint,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         }

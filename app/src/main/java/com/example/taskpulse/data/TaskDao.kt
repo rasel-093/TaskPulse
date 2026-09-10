@@ -23,6 +23,9 @@ interface TaskDao {
     suspend fun updateTaskCompletion(taskId: Long, isCompleted: Boolean)
 
     @Update
+    suspend fun update(task: Task)
+
+    @Update
     suspend fun updateTask(task: Task)
 
     @Delete

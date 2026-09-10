@@ -20,8 +20,10 @@ A thoughtful, production-grade Android task and reminder app built with **Jetpac
   - Subtle breathing halo animation on urgent tasks (due within 5 minutes).
   - Quick filter pills: **All**, **Today**, **Recurring**, and **Done**.
 
-- **Thoughtful Task Creation**:
+- **Thoughtful Task Creation & In-Place Editing**:
   - Modal bottom sheet with quick time presets (**10 min**, **1 hour**, **Tomorrow**, **Custom minutes**).
+  - Tap any task card or trailing edit button to edit in-place with pre-filled state.
+  - Smart WorkManager rescheduling (`ExistingWorkPolicy.REPLACE` for one-time edits, `ExistingPeriodicWorkPolicy.UPDATE` for recurring).
   - **Repeat daily** toggle for recurring reminders.
   - Respect silent hours toggle for evening scheduling.
 

@@ -55,6 +55,10 @@ class TaskListViewModel(val repository: TaskRepository) : ViewModel() {
         return repository.insert(task)
     }
 
+    suspend fun updateTask(task: Task) {
+        repository.updateTask(task)
+    }
+
     fun deleteTask(task: Task) {
         viewModelScope.launch {
             repository.cancelReminder(task.id)

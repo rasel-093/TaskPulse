@@ -49,6 +49,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
 import com.example.taskpulse.data.Task
 import com.example.taskpulse.ui.theme.Fog
 import com.example.taskpulse.ui.theme.Graphite
@@ -85,6 +87,7 @@ enum class QuickTimePreset(val label: String, val minutes: Long) {
 fun AddTaskBottomSheet(
     viewModel: TaskListViewModel,
     onDismissRequest: () -> Unit,
+    taskToEdit: Task? = null,
     onTaskCreated: (taskId: Long) -> Unit = {},
     onShowSnackbar: ((String) -> Unit)? = null,
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -107,6 +110,7 @@ fun AddTaskBottomSheet(
         AddTaskSheetContent(
             viewModel = viewModel,
             onDismissRequest = onDismissRequest,
+            taskToEdit = taskToEdit,
             onTaskCreated = onTaskCreated,
             onShowSnackbar = onShowSnackbar
         )
@@ -117,13 +121,36 @@ fun AddTaskBottomSheet(
 fun AddTaskSheetContent(
     viewModel: TaskListViewModel,
     onDismissRequest: () -> Unit,
+    taskToEdit: Task? = null,
     onTaskCreated: (taskId: Long) -> Unit = {},
     onShowSnackbar: ((String) -> Unit)? = null
 ) {
-    var title by remember { mutableStateOf("") }
-    var selectedPreset by remember { mutableStateOf(QuickTimePreset.ONE_HOUR) }
-    var customMinutesText by remember { mutableStateOf("15") }
-    var isRecurring by remember { mutableStateOf(false) }
+    val isEditMode = taskToEdit != null
+    var title by remember(taskToEdit) { mutableStateOf(taskToEdit?.title ?: "") }
+
+    val initialPreset = remember(taskToEdit) {
+        if (taskToEdit == null) {
+            QuickTimePreset.ONE_HOUR
+        } else {
+            when (taskToEdit.dueMinutes) {
+                10L -> QuickTimePreset.TEN_MIN
+                60L -> QuickTimePreset.ONE_HOUR
+                1440L -> QuickTimePreset.TOMORROW
+                else -> QuickTimePreset.CUSTOM
+            }
+        }
+    }
+    var selectedPreset by remember(taskToEdit) { mutableStateOf(initialPreset) }
+    var customMinutesText by remember(taskToEdit) {
+        mutableStateOf(
+            if (taskToEdit != null && taskToEdit.dueMinutes !in listOf(10L, 60L, 1440L) && taskToEdit.dueMinutes > 0L) {
+                taskToEdit.dueMinutes.toString()
+            } else {
+                "15"
+            }
+        )
+    }
+    var isRecurring by remember(taskToEdit) { mutableStateOf(taskToEdit?.isRecurring ?: false) }
     var silentHours by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
@@ -141,7 +168,7 @@ fun AddTaskSheetContent(
     ) {
         // Title matching design spec Space Grotesk 20/600
         Text(
-            text = "New reminder",
+            text = if (isEditMode) "Edit reminder" else "New reminder",
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.SemiBold,
             color = TextHi,
@@ -387,42 +414,101 @@ fun AddTaskSheetContent(
                 }
 
                 coroutineScope.launch {
-                    val task = Task(
-                        title = title.trim(),
-                        dueMinutes = if (isRecurring) 0L else finalMinutes,
-                        isRecurring = isRecurring
-                    )
-                    val generatedTaskId = viewModel.insertTask(task)
-
-                    if (isRecurring) {
-                        viewModel.scheduleRecurringReminder(
-                            taskId = generatedTaskId,
-                            taskTitle = task.title
+                    if (taskToEdit != null) {
+                        // 3a. Call repository.updateTask() with the new values
+                        val updatedTask = taskToEdit.copy(
+                            title = title.trim(),
+                            dueMinutes = if (isRecurring) 0L else finalMinutes,
+                            isRecurring = isRecurring
                         )
+                        viewModel.updateTask(updatedTask)
+
+                        // 3b, 3c, 3d. Reschedule the reminder work
+                        val wasRecurring = taskToEdit.isRecurring
+                        if (isRecurring) {
+                            if (!wasRecurring) {
+                                // 3d. If isRecurring was toggled ON during edit (was one-time, now recurring),
+                                // cancel any pending one-time work for this taskId first, then call scheduleRecurringReminder
+                                viewModel.cancelReminder(taskToEdit.id)
+                            }
+                            // For recurring reminders, UPDATE remains correct since it already handles in-place edits
+                            viewModel.repository.scheduleRecurringReminder(
+                                taskId = taskToEdit.id,
+                                taskTitle = updatedTask.title,
+                                policy = ExistingPeriodicWorkPolicy.UPDATE
+                            )
+                        } else {
+                            if (wasRecurring) {
+                                // 3c. If isRecurring was toggled OFF during edit, call cancelReminder(taskId)
+                                // to stop the periodic work, since enqueueing a new one-time request won't
+                                // automatically cancel an existing periodic one under the same tag
+                                viewModel.cancelReminder(taskToEdit.id)
+                            }
+                            // 3b. Use ExistingWorkPolicy.REPLACE (not KEEP) for one-time reminders in the edit path
+                            viewModel.repository.scheduleReminder(
+                                taskId = taskToEdit.id,
+                                taskTitle = updatedTask.title,
+                                delayMinutes = updatedTask.dueMinutes,
+                                policy = ExistingWorkPolicy.REPLACE
+                            )
+                        }
+
+                        // 5. Show confirmation: "Reminder updated — [time]"
+                        val confirmationMessage = if (isRecurring) {
+                            "Reminder updated — repeats daily"
+                        } else {
+                            val targetTime = java.time.LocalTime.now().plusMinutes(updatedTask.dueMinutes)
+                            val timeFormatted = targetTime.format(java.time.format.DateTimeFormatter.ofPattern("h:mm a"))
+                            "Reminder updated — $timeFormatted"
+                        }
+
+                        if (onShowSnackbar != null) {
+                            onShowSnackbar(confirmationMessage)
+                        } else {
+                            Toast.makeText(context, confirmationMessage, Toast.LENGTH_SHORT).show()
+                        }
+
+                        onTaskCreated(taskToEdit.id)
+                        onDismissRequest()
                     } else {
-                        viewModel.scheduleReminder(
-                            taskId = generatedTaskId,
-                            taskTitle = task.title,
-                            delayMinutes = task.dueMinutes
+                        // Create mode
+                        val task = Task(
+                            title = title.trim(),
+                            dueMinutes = if (isRecurring) 0L else finalMinutes,
+                            isRecurring = isRecurring
                         )
-                    }
+                        val generatedTaskId = viewModel.insertTask(task)
 
-                    val confirmationMessage = if (isRecurring) {
-                        "Reminder set for ${task.title} — repeats daily"
-                    } else {
-                        val targetTime = java.time.LocalTime.now().plusMinutes(task.dueMinutes)
-                        val timeFormatted = targetTime.format(java.time.format.DateTimeFormatter.ofPattern("h:mm a"))
-                        "Reminder set for ${task.title} — $timeFormatted"
-                    }
+                        if (isRecurring) {
+                            viewModel.scheduleRecurringReminder(
+                                taskId = generatedTaskId,
+                                taskTitle = task.title
+                            )
+                        } else {
+                            viewModel.scheduleReminder(
+                                taskId = generatedTaskId,
+                                taskTitle = task.title,
+                                delayMinutes = task.dueMinutes
+                            )
+                        }
 
-                    if (onShowSnackbar != null) {
-                        onShowSnackbar(confirmationMessage)
-                    } else {
-                        Toast.makeText(context, confirmationMessage, Toast.LENGTH_SHORT).show()
-                    }
+                        val confirmationMessage = if (isRecurring) {
+                            "Reminder set for ${task.title} — repeats daily"
+                        } else {
+                            val targetTime = java.time.LocalTime.now().plusMinutes(task.dueMinutes)
+                            val timeFormatted = targetTime.format(java.time.format.DateTimeFormatter.ofPattern("h:mm a"))
+                            "Reminder set for ${task.title} — $timeFormatted"
+                        }
 
-                    onTaskCreated(generatedTaskId)
-                    onDismissRequest()
+                        if (onShowSnackbar != null) {
+                            onShowSnackbar(confirmationMessage)
+                        } else {
+                            Toast.makeText(context, confirmationMessage, Toast.LENGTH_SHORT).show()
+                        }
+
+                        onTaskCreated(generatedTaskId)
+                        onDismissRequest()
+                    }
                 }
             },
             shape = RoundedCornerShape(8.dp),
@@ -435,7 +521,7 @@ fun AddTaskSheetContent(
                 .height(52.dp)
         ) {
             Text(
-                text = "Set reminder",
+                text = if (isEditMode) "Save changes" else "Set reminder",
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 15.sp
@@ -450,6 +536,7 @@ fun AddTaskSheetContent(
 @Composable
 fun AddTaskScreen(
     viewModel: TaskListViewModel,
+    taskToEdit: Task? = null,
     onTaskCreated: (taskId: Long) -> Unit = {},
     onNavigateBack: () -> Unit = {}
 ) {
@@ -462,6 +549,7 @@ fun AddTaskScreen(
         AddTaskSheetContent(
             viewModel = viewModel,
             onDismissRequest = onNavigateBack,
+            taskToEdit = taskToEdit,
             onTaskCreated = onTaskCreated
         )
     }
@@ -472,11 +560,13 @@ fun AddTaskScreen(
 fun AddTaskDialog(
     viewModel: TaskListViewModel,
     onDismissRequest: () -> Unit,
+    taskToEdit: Task? = null,
     onTaskCreated: (taskId: Long) -> Unit = {}
 ) {
     AddTaskBottomSheet(
         viewModel = viewModel,
         onDismissRequest = onDismissRequest,
+        taskToEdit = taskToEdit,
         onTaskCreated = onTaskCreated
     )
 }

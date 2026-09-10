@@ -3,6 +3,7 @@ package com.example.taskpulse.worker
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.PowerManager
 import androidx.annotation.RequiresPermission
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
@@ -14,12 +15,21 @@ class ReminderWorker(context: Context, params: WorkerParameters) : Worker(contex
 
     override fun doWork(): Result {
         val permission = ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.POST_NOTIFICATIONS)
-        if ( permission == PackageManager.PERMISSION_GRANTED){
+        if (permission == PackageManager.PERMISSION_GRANTED) {
             val taskTitle = inputData.getString(TASK_TITLE_KEY) ?: return Result.failure()
             val taskId = inputData.getLong(TASK_ID_KEY, defaultValue = 0L)
             if (taskId == 0L) return Result.failure()
+
+            // Verify task is still pending before notifying
+            val database = com.example.taskpulse.data.TaskDatabase.getDatabase(applicationContext)
+            val task = kotlinx.coroutines.runBlocking { database.taskDao().getTaskById(taskId) }
+            if (task != null && task.isCompleted) {
+                return Result.success()
+            }
+
             sendNotification(
-                context = applicationContext, message = taskTitle,
+                context = applicationContext,
+                message = taskTitle,
                 taskId = taskId
             )
         }

@@ -86,8 +86,30 @@ fun sendNotification(message: String, context: Context, taskId: Long) {
         .bigText("Reminder due now. Tap Done to mark it complete, or Snooze to be reminded in 10 minutes.")
         .setSummaryText("TaskPulse")
 
+    // Load rich full-color app icon for the notification card
+    val appIconBitmap = try {
+        androidx.core.content.ContextCompat.getDrawable(context, R.mipmap.ic_launcher)
+            ?.let { androidx.core.graphics.drawable.DrawableCompat.wrap(it) }
+            ?.let { drawable ->
+                val width = drawable.intrinsicWidth.takeIf { it > 0 } ?: 128
+                val height = drawable.intrinsicHeight.takeIf { it > 0 } ?: 128
+                val bitmap = android.graphics.Bitmap.createBitmap(width, height, android.graphics.Bitmap.Config.ARGB_8888)
+                val canvas = android.graphics.Canvas(bitmap)
+                drawable.setBounds(0, 0, canvas.width, canvas.height)
+                drawable.draw(canvas)
+                bitmap
+            }
+    } catch (e: Exception) {
+        null
+    }
+
     val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-        .setSmallIcon(R.drawable.notification)
+        .setSmallIcon(R.drawable.ic_notification)
+        .apply {
+            if (appIconBitmap != null) {
+                setLargeIcon(appIconBitmap)
+            }
+        }
         .setContentTitle(message)
         .setContentText("Tap Done to mark complete, or Snooze 10m.")
         .setStyle(bigTextStyle)
